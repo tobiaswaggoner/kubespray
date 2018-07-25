@@ -1,27 +1,73 @@
 BOX_IMAGE = "bento/ubuntu-16.04"
 NODE_COUNT = 3
+KUBE_NODE_MEMORY = 2048
+KUBE_NODE_CPUS = 2
 
 Vagrant.configure("2") do |config|
-  config.vm.define "master" do |subconfig|
-    subconfig.vm.box = BOX_IMAGE
-    subconfig.vm.hostname = "ansible"
-    subconfig.vm.network :private_network, ip: "10.0.0.10"
-  end
-  
+
+  # Create NODE_COUNT empty VMs which will later be used for kubernetes first.
   (1..NODE_COUNT).each do |i|
     config.vm.define "test-kubean#{i}" do |subconfig|
       subconfig.vm.box = BOX_IMAGE
       subconfig.vm.hostname = "test-kubean#{i}"
       subconfig.vm.network :private_network, ip: "10.0.0.#{i + 10}"
       subconfig.vm.provider "virtualbox" do |v|
-        v.memory = 2048
-        v.cpus = 2
+        v.memory = KUBE_NODE_MEMORY
+        v.cpus = KUBE_NODE_CPUS
       end
+
+      id_rsa_key_pub = File.read("cert/id_rsa.pub")
+      config.vm.provision "shell", :inline => "echo 'appending SSH Pub Key to ~vagrant/.ssh/authorized_keys' && echo '#{id_rsa_key_pub }' >> /home/vagrant/.ssh/authorized_keys && chmod 600 /home/vagrant/.ssh/authorized_keys"
+
+      # Install avahi on all machines  
+      subconfig.vm.provision "shell", inline: <<-SHELL
+        apt-get install -y avahi-daemon libnss-mdns
+      SHELL
     end
   end
 
-  # Install avahi on all machines  
-  config.vm.provision "shell", inline: <<-SHELL
-    apt-get install -y avahi-daemon libnss-mdns
-  SHELL
+  # Create a master VM from which to run the ansible scripts / kubespray
+  config.vm.define "ansible" do |subconfig|
+    subconfig.vm.box = BOX_IMAGE
+    subconfig.vm.hostname = "ansible"
+    subconfig.vm.network :private_network, ip: "10.0.0.10"
+    subconfig.vm.provider "virtualbox" do |v|
+      v.memory = 512
+      v.cpus = 1
+    end
+
+    # Install avahi
+    subconfig.vm.provision "shell", inline: <<-SHELL
+      apt-get install -y avahi-daemon libnss-mdns
+    SHELL
+
+    # copy our prepared certs
+    subconfig.vm.provision "file", source: "cert/id_rsa", destination: "$HOME/.ssh/id_rsa"
+    subconfig.vm.provision "file", source: "cert/id_rsa.pub", destination: "$HOME/.ssh/id_rsa.pub"
+
+    # delete config in case we re-provision
+    subconfig.vm.provision "shell", inline: "rm /home/vagrant/kubesetup -r -f"
+
+    # copy our config
+    subconfig.vm.provision "file", source: "../kubespray-config/test-kubea", destination: "$HOME/kubesetup/test-kubea"
+
+    # Get kubespray from github
+    subconfig.vm.provision "shell", inline: "git clone https://github.com/kubernetes-incubator/kubespray /home/vagrant/kubesetup/kubespray && cd /home/vagrant/kubesetup/kubespray && git checkout tags/v2.5.0 -b release2.5.0"
+
+    # Install Python
+    subconfig.vm.provision "shell", inline: "sudo apt-get update --fix-missing -y && sudo apt-get upgrade -y && sudo apt-get install python-pip -y"
+
+    #Upgrade to lates version
+    subconfig.vm.provision "shell", inline: "sudo pip install --upgrade pip"
+
+    # Install kubespray prerequisites (includes ansible)
+    subconfig.vm.provision "shell", inline: "cd /home/vagrant/kubesetup/kubespray && sudo pip install -r requirements.txt"
+
+    # Gather the known hosts from all hosts
+    subconfig.vm.provision "file", source: "ansible/accept_hostkey.yml", destination: "$HOME/kubesetup/ansible/accept_hostkey.yml"
+    subconfig.vm.provision "shell", inline: "rm /home/vagrant/known_hosts -f"
+    subconfig.vm.provision "shell", inline: "cd /home/vagrant/kubesetup && ansible-playbook -i test-kubea/hosts.ini ansible/accept_hostkey.yml"
+
+  end
+  
 end
