@@ -19,6 +19,8 @@ Vagrant.configure("2") do |config|
       id_rsa_key_pub = File.read("cert/id_rsa.pub")
       config.vm.provision "shell", :inline => "echo 'appending SSH Pub Key to ~vagrant/.ssh/authorized_keys' && echo '#{id_rsa_key_pub }' >> /home/vagrant/.ssh/authorized_keys && chmod 600 /home/vagrant/.ssh/authorized_keys"
 
+      config.vm.provision "shell", :inline => "echo 'switching swapping off' && sudo swapoff -a"
+
       # Install avahi on all machines  
       subconfig.vm.provision "shell", inline: <<-SHELL
         apt-get install -y avahi-daemon libnss-mdns
@@ -42,18 +44,18 @@ Vagrant.configure("2") do |config|
     SHELL
 
     # copy our prepared certs
-    subconfig.vm.provision "file", source: "cert/id_rsa", destination: "$HOME/.ssh/id_rsa"
-    subconfig.vm.provision "shell", inline: "chmod 600 $HOME/.ssh/id_rsa"
-    subconfig.vm.provision "file", source: "cert/id_rsa.pub", destination: "$HOME/.ssh/id_rsa.pub"
+    subconfig.vm.provision "file", source: "cert/id_rsa", destination: "/home/vagrant/.ssh/id_rsa"
+    subconfig.vm.provision "shell", inline: "chmod 600 /home/vagrant/.ssh/id_rsa"
+    subconfig.vm.provision "file", source: "cert/id_rsa.pub", destination: "/home/vagrant/.ssh/id_rsa.pub"
 
     # delete config in case we re-provision
     subconfig.vm.provision "shell", inline: "rm /home/vagrant/kubesetup -r -f"
 
     # copy our config
-    subconfig.vm.provision "file", source: "../kubespray-config/test-kubea", destination: "$HOME/kubesetup/test-kubea"
+    subconfig.vm.provision "file", source: "../kubespray-config/test-kubea", destination: "/home/vagrant/kubesetup/test-kubea"
 
     # Get kubespray from github
-    subconfig.vm.provision "shell", inline: "git clone https://github.com/kubernetes-incubator/kubespray /home/vagrant/kubesetup/kubespray && cd /home/vagrant/kubesetup/kubespray && git checkout tags/v2.5.0 -b release2.5.0"
+    subconfig.vm.provision "shell", inline: "git clone https://github.com/kubernetes-incubator/kubespray /home/vagrant/kubesetup/kubespray && cd /home/vagrant/kubesetup/kubespray && git checkout tags/v2.5.0 -b release2.5.0", privileged: false
 
     # Install Python
     subconfig.vm.provision "shell", inline: "sudo apt-get update --fix-missing -y && sudo apt-get upgrade -y && sudo apt-get install python-pip -y"
@@ -65,12 +67,12 @@ Vagrant.configure("2") do |config|
     subconfig.vm.provision "shell", inline: "cd /home/vagrant/kubesetup/kubespray && sudo pip install -r requirements.txt"
 
     # Gather the known hosts from all hosts
-    subconfig.vm.provision "file", source: "ansible/accept_hostkey.yml", destination: "$HOME/kubesetup/ansible/accept_hostkey.yml"
+    subconfig.vm.provision "file", source: "ansible/accept_hostkey.yml", destination: "/home/vagrant/kubesetup/ansible/accept_hostkey.yml"
     subconfig.vm.provision "shell", inline: "rm /home/vagrant/known_hosts -f"
-    subconfig.vm.provision "shell", inline: "cd /home/vagrant/kubesetup && ansible-playbook -i test-kubea/hosts.ini ansible/accept_hostkey.yml"
+    subconfig.vm.provision "shell", inline: "echo 'Getting all hostkeys' && cd /home/vagrant/kubesetup && ansible-playbook -i test-kubea/hosts.ini ansible/accept_hostkey.yml", privileged: false
 
     # And finally deploy kubernetes via kubespray
-    subconfig.vm.provision "shell", inline: "cd /home/vagrant/kubesetup && ansible-playbook -i test-kubea/hosts.ini kubespray/cluster.yml --sudo"
+    subconfig.vm.provision "shell", inline: "echo 'Running Kubespray' && cd /home/vagrant/kubesetup && ansible-playbook -i test-kubea/hosts.ini kubespray/cluster.yml --sudo", privileged: false
         
   end
   
