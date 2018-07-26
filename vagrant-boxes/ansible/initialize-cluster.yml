@@ -1,6 +1,8 @@
 ---
-# Used to accept all hostkeys of all machines
+# Create a service account and get its token.
 - hosts: test-kubean1.local
   tasks:
   - name: run apply some additional settings to kubernetes
     shell: kubectl apply -f /vagrant/kubernetes/
+  - name: Get Access Token for Dashboard
+    shell: kubectl -n kube-system describe secret $(kubectl -n kube-system get secret | awk '/^admin-user-token-/{print $1}') | awk '$1=="token:"{print $2}' >/vagrant/cert/dashboardaccesstoken.txt
