@@ -1,0 +1,6 @@
+---
+# Used to accept all hostkeys of all machines
+- hosts: test-kubean1.local
+  tasks:
+  - name: run apply some additional settings to kubernetes
+    shell: kubectl apply -f /vagrant/kubernetes/
