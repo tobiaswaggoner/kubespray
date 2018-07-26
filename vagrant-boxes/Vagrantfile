@@ -3,6 +3,10 @@ NODE_COUNT = 3
 KUBE_NODE_MEMORY = 2048
 KUBE_NODE_CPUS = 2
 
+if(!File.file?("cert/id_rsa.pub"))
+  raise "## YOU MUST PROVIDE A CERT FILE AT cert/id_rsa.pub"
+end
+
 Vagrant.configure("2") do |config|
 
   # Create NODE_COUNT empty VMs which will later be used for kubernetes first.
@@ -71,9 +75,12 @@ Vagrant.configure("2") do |config|
     subconfig.vm.provision "shell", inline: "rm /home/vagrant/known_hosts -f"
     subconfig.vm.provision "shell", inline: "echo 'Getting all hostkeys' && cd /home/vagrant/kubesetup && ansible-playbook -i test-kubea/hosts.ini ansible/accept_hostkey.yml", privileged: false
 
-    # And finally deploy kubernetes via kubespray
+    # Deploy kubernetes via kubespray
     subconfig.vm.provision "shell", inline: "echo 'Running Kubespray' && cd /home/vagrant/kubesetup && ansible-playbook -i test-kubea/hosts.ini kubespray/cluster.yml --sudo", privileged: false
         
+    # And do some final initializations
+    subconfig.vm.provision "file", source: "ansible/initialize-cluster.yml", destination: "/home/vagrant/kubesetup/ansible/initialize-cluster.yml"
+    subconfig.vm.provision "shell", inline: "echo 'Initializing cluster' && cd /home/vagrant/kubesetup && ansible-playbook -i test-kubea/hosts.ini ansible/initialize-cluster.yml", privileged: false
   end
   
 end
