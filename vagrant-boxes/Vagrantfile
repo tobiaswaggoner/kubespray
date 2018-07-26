@@ -19,7 +19,7 @@ Vagrant.configure("2") do |config|
       id_rsa_key_pub = File.read("cert/id_rsa.pub")
       config.vm.provision "shell", :inline => "echo 'appending SSH Pub Key to ~vagrant/.ssh/authorized_keys' && echo '#{id_rsa_key_pub }' >> /home/vagrant/.ssh/authorized_keys && chmod 600 /home/vagrant/.ssh/authorized_keys"
 
-      config.vm.provision "shell", :inline => "echo 'switching swapping off' && sudo swapoff -a"
+      config.vm.provision "shell", :inline => "echo 'switching swapping off' && sudo swapoff -a && sudo sed -i '/ swap / s/^\(.*\)$/#\1/g' /etc/fstab"
 
       # Install avahi on all machines  
       subconfig.vm.provision "shell", inline: <<-SHELL
@@ -60,7 +60,7 @@ Vagrant.configure("2") do |config|
     # Install Python
     subconfig.vm.provision "shell", inline: "sudo apt-get update --fix-missing -y && sudo apt-get upgrade -y && sudo apt-get install python-pip -y"
 
-    #Upgrade to lates version
+    #Upgrade to latest version
     subconfig.vm.provision "shell", inline: "sudo pip install --upgrade pip"
 
     # Install kubespray prerequisites (includes ansible)
