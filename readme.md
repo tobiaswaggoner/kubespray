@@ -2,7 +2,7 @@
 
 ## Description
 
-This repo was created to demonstrate the deployment of kubernetes via [kubespray](https://github.com/kubernetes-incubator/kubespray) on a local Cluster, based on VirtualBox VVms.
+This repo was created to demonstrate the deployment of kubernetes via [kubespray](https://github.com/kubernetes-incubator/kubespray) on a local Cluster, based on VirtualBox VMs.
 
 The idea of this repo is to create a customizable, fully automated script that sets up a kubernetes cluster with properties similar to a production ready cluster, but running locally - without any further user interaction. This cluster can then be used to test payloads of applications.
 
